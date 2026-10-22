@@ -7,6 +7,7 @@
 pub mod browser;
 mod cargo;
 mod github;
+mod graphql_batch;
 mod model;
 mod repository;
 mod stars;

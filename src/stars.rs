@@ -10,6 +10,13 @@ use crate::{
 pub trait StarLookup {
     fn viewer(&self) -> Result<String>;
     fn has_starred(&self, repository: &GithubRepo) -> Result<bool>;
+
+    fn has_starred_many(&self, repositories: &[GithubRepo], _viewer: &str) -> Vec<Result<bool>> {
+        repositories
+            .iter()
+            .map(|repo| self.has_starred(repo))
+            .collect()
+    }
 }
 
 /// Merge reports and check each normalized GitHub repository exactly once.
@@ -50,10 +57,17 @@ pub fn collect_stars(reports: &[DependencyReport], lookup: &impl StarLookup) -> 
     let viewer = lookup
         .viewer()
         .context("cannot identify authenticated GitHub user; run gh auth login")?;
+    let identities: Vec<_> = repositories.keys().cloned().collect();
+    let results = lookup.has_starred_many(&identities, &viewer);
+    anyhow::ensure!(
+        results.len() == repositories.len(),
+        "incomplete star lookup results"
+    );
     let repositories = repositories
         .into_iter()
-        .map(|(repo, used_by)| {
-            let (starred, error) = match lookup.has_starred(&repo) {
+        .zip(results)
+        .map(|((repo, used_by), result)| {
+            let (starred, error) = match result {
                 Ok(value) => (Some(value), None),
                 Err(error) => (None, Some(format!("{error:#}"))),
             };

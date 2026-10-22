@@ -31,7 +31,9 @@ impl App {
                     .collect();
                 self.model.repositories.loading = !self.model.repositories.rows.is_empty();
                 self.model.repositories.notice.clear();
-                self.model.repositories.generation = self.workers.stats.refresh(account, urls);
+                let force = self.visits.scheduled();
+                self.model.repositories.generation =
+                    self.workers.stats.refresh(account, urls, force);
             }
             Err(error) => {
                 self.model.repositories.loading = false;
@@ -92,7 +94,10 @@ impl App {
     ) {
         if let Some(url) = self.model.repositories.selected_url() {
             self.model.repositories.notice = match open(&url) {
-                Ok(()) => format!("Opened {url}"),
+                Ok(()) => {
+                    self.visits.opened(url.clone());
+                    format!("Opened {url}; star status will be checked again")
+                }
                 Err(error) => format!("Cannot open browser: {error}"),
             };
         }

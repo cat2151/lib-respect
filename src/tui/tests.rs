@@ -119,6 +119,7 @@ fn hjkl_moves_focus_and_old_results_never_replace_the_selected_repo() {
         store,
         pending_since: None,
         pending_force: false,
+        visits: Default::default(),
     };
     app.key(KeyCode::Char('j'));
     assert_eq!(app.model.current().unwrap().id, 2);
@@ -175,6 +176,7 @@ fn cached_projects_get_shared_urls_before_auth_and_schedule_enrichment_after_aut
         store,
         pending_since: None,
         pending_force: false,
+        visits: Default::default(),
     };
     app.selection_changed(false);
     assert!(app.pending_since.is_none());
@@ -224,6 +226,7 @@ fn background_inspects_unselected_projects_even_when_filtered_on_repository_scre
         store,
         pending_since: None,
         pending_force: false,
+        visits: Default::default(),
     };
     app.pending_since = Some(Instant::now());
     app.inspect_next_background();
@@ -325,6 +328,7 @@ fn completed_cache_restores_and_selection_does_not_restart_it() {
         store,
         pending_since: None,
         pending_force: false,
+        visits: Default::default(),
     };
     app.restore_cached_inspections();
     assert_eq!(app.model.views[&1].checked_revision, Some(None));

@@ -5,8 +5,8 @@ use std::{
 
 use lib_respect::browser::{
     Account, Cancellation, Catalog, CratesIo, DependencyCache, INSPECTION_VERSION, OwnedRepository,
-    RepositoryStats, Store, ViewerStar, discover, enrich_libraries, identify_account,
-    inspect_repository, now,
+    RepositoryStats, Store, ViewerStar, discover_cached, enrich_libraries, identify_account,
+    inspect_repository_cached, now,
 };
 
 use super::stats_worker::StatsWorker;
@@ -54,7 +54,7 @@ impl Workers {
                     if let Some(cache) = catalog_store.catalog(&account)? {
                         let _ = catalog_events.send(Message::Catalog(cache, true, None));
                     }
-                    let catalog = discover(&account, &cancel)?;
+                    let catalog = discover_cached(&account, &cancel, &catalog_store)?;
                     cancel.check()?;
                     let warning = catalog_store
                         .save_catalog(&catalog)
@@ -94,7 +94,12 @@ impl Workers {
                             repo_id: job.repo.id,
                             pushed_at: job.repo.pushed_at.clone(),
                             fetched_at: now(),
-                            report: inspect_repository(&job.repo, &job.cancel)?,
+                            report: inspect_repository_cached(
+                                &job.repo,
+                                job.account_id,
+                                &store,
+                                &job.cancel,
+                            )?,
                         },
                     };
                     job.cancel.check()?;

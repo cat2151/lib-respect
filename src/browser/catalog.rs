@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, ensure};
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
 use super::{Cancellation, now, process::api};
@@ -42,12 +42,11 @@ pub struct Catalog {
 }
 
 pub fn identify_account(cancel: &Cancellation) -> Result<Account> {
-    let account: Account = serde_json::from_slice(&api("user", false, false, cancel)?)?;
-    ensure!(
-        account.id > 0 && !account.login.is_empty(),
-        "invalid authenticated GitHub account"
-    );
-    Ok(account)
+    let viewer = crate::graphql_batch::fetch(&[], false, cancel)?;
+    Ok(Account {
+        id: viewer.viewer_id,
+        login: viewer.viewer_login,
+    })
 }
 
 pub fn discover(account: &Account, cancel: &Cancellation) -> Result<Catalog> {

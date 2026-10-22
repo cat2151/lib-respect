@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 
-use super::{Cancellation, process::api};
+use super::{Cancellation, process::graphql};
 use crate::GithubRepo;
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -58,23 +58,27 @@ impl Default for RepositoryStatsCache {
 
 /// Read public repository popularity through the user's existing gh authentication.
 pub fn repository_stars(repo: &GithubRepo, cancel: &Cancellation) -> Result<u64> {
-    let bytes = api(
-        &format!("repos/{}/{}", repo.owner(), repo.name()),
-        false,
-        false,
+    let bytes = graphql(
+        "query($owner:String!,$name:String!){repository(owner:$owner,name:$name){stargazerCount}}",
+        repo,
         cancel,
     )?;
     parse_stars(&bytes)
 }
 
 fn parse_stars(bytes: &[u8]) -> Result<u64> {
-    #[derive(Deserialize)]
-    struct Response {
-        stargazers_count: u64,
+    let response: serde_json::Value =
+        serde_json::from_slice(bytes).context("invalid GitHub response")?;
+    if let Some(errors) = response.get("errors") {
+        ensure!(
+            errors.as_array().is_some_and(|errors| errors.is_empty()),
+            "GitHub GraphQL errors: {errors}"
+        );
     }
-    let response: Response =
-        serde_json::from_slice(bytes).context("GitHub response has no valid stargazers_count")?;
-    Ok(response.stargazers_count)
+    response
+        .pointer("/data/repository/stargazerCount")
+        .and_then(serde_json::Value::as_u64)
+        .context("GitHub response has no valid stargazerCount")
 }
 
 #[cfg(test)]
@@ -83,11 +87,15 @@ mod tests {
 
     #[test]
     fn missing_count_is_not_zero_and_failed_refresh_keeps_previous_count() {
-        assert_eq!(parse_stars(br#"{"stargazers_count":0}"#).unwrap(), 0);
+        assert_eq!(
+            parse_stars(br#"{"data":{"repository":{"stargazerCount":0}}}"#).unwrap(),
+            0
+        );
         for bytes in [
             br#"{}"#.as_slice(),
-            br#"{"stargazers_count":null}"#,
-            br#"{"stargazers_count":-1}"#,
+            br#"{"data":{"repository":{"stargazerCount":null}}}"#,
+            br#"{"data":{"repository":{"stargazerCount":-1}}}"#,
+            br#"{"data":{"repository":{"stargazerCount":0}},"errors":[{"message":"denied"}]}"#,
         ] {
             assert!(parse_stars(bytes).is_err());
         }

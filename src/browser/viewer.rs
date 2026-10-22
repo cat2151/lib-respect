@@ -71,6 +71,33 @@ pub fn repository_details(
     parse_details(&bytes, account)
 }
 
+/// Fetch a bounded group of repositories in one request, retaining per-repo errors.
+pub fn repository_details_batch(
+    repos: &[GithubRepo],
+    account: &Account,
+    cancel: &Cancellation,
+) -> Result<Vec<Result<RepositoryDetails, String>>> {
+    ensure!(
+        repos.len() <= crate::graphql_batch::BATCH_SIZE,
+        "repository batch is too large"
+    );
+    let batch = crate::graphql_batch::fetch(repos, true, cancel)?;
+    ensure!(
+        batch.viewer_id == account.id,
+        "GitHub account changed; restart to identify the current account"
+    );
+    Ok(batch
+        .repositories
+        .into_iter()
+        .map(|value| {
+            value.and_then(|value| {
+                serde_json::from_value(value)
+                    .map_err(|error| format!("invalid repository details: {error}"))
+            })
+        })
+        .collect())
+}
+
 fn parse_details(bytes: &[u8], account: &Account) -> Result<RepositoryDetails> {
     #[derive(Deserialize)]
     struct Response {

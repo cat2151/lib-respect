@@ -1,5 +1,3 @@
-use std::process::Command;
-
 use anyhow::{Context, Result, bail};
 use serde_json::Value;
 
@@ -28,27 +26,40 @@ impl StarLookup for GhClient {
             .and_then(Value::as_bool)
             .context("GitHub repository is missing or viewerHasStarred is unavailable")
     }
+
+    fn has_starred_many(&self, repositories: &[GithubRepo], viewer: &str) -> Vec<Result<bool>> {
+        let cancel = crate::browser::Cancellation::default();
+        let mut results = Vec::new();
+        for chunk in repositories.chunks(crate::graphql_batch::BATCH_SIZE) {
+            let result = crate::graphql_batch::fetch(chunk, false, &cancel).and_then(|batch| {
+                anyhow::ensure!(
+                    batch.viewer_login.eq_ignore_ascii_case(viewer),
+                    "GitHub account changed during star lookup"
+                );
+                Ok(batch.repositories)
+            });
+            match result {
+                Ok(batch) => results.extend(batch.into_iter().map(|value| {
+                    value
+                        .map_err(anyhow::Error::msg)?
+                        .get("viewerHasStarred")
+                        .and_then(Value::as_bool)
+                        .context("GitHub repository is missing viewerHasStarred")
+                })),
+                Err(error) => {
+                    // Do not keep requesting more batches on authentication or rate limit failures.
+                    results.resize_with(repositories.len(), || Err(anyhow::anyhow!("{error:#}")));
+                    break;
+                }
+            }
+        }
+        results
+    }
 }
 
 fn graphql(query: &str, variables: &[(&str, &str)]) -> Result<Value> {
-    let mut command = Command::new("gh");
-    command
-        .args(["api", "graphql", "--hostname", "github.com", "--raw-field"])
-        .arg(format!("query={query}"))
-        .env("GH_PROMPT_DISABLED", "1");
-    for (key, value) in variables {
-        command.arg("--raw-field").arg(format!("{key}={value}"));
-    }
-    let output = command
-        .output()
-        .context("cannot run gh; install GitHub CLI and run gh auth login")?;
-    if !output.status.success() {
-        bail!(
-            "gh api graphql failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        );
-    }
-    parse_response(&output.stdout)
+    let bytes = crate::browser::process::graphql_query(query, variables, &Default::default())?;
+    parse_response(&bytes)
 }
 
 fn parse_response(bytes: &[u8]) -> Result<Value> {

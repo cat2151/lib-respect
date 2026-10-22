@@ -195,6 +195,7 @@ fn tab_switches_screen_sort_and_open_target_follow_repository_selection() {
         store,
         pending_since: None,
         pending_force: false,
+        visits: Default::default(),
     };
     app.key(KeyCode::Tab);
     assert_eq!(app.model.screen, Screen::Repositories);
@@ -211,8 +212,15 @@ fn tab_switches_screen_sort_and_open_target_follow_repository_selection() {
         Ok(())
     });
     assert_eq!(opened, "https://github.com/clap-rs/clap");
+    assert!(app.visits.due().is_empty());
+    app.visits.returned();
+    assert_eq!(app.visits.due(), BTreeSet::from([opened.clone()]));
+    app.visits.scheduled();
+    app.visits.completed(&opened);
     app.open_selected_repository(|_| Err(std::io::Error::other("no browser")));
     assert!(app.model.repositories.notice.contains("no browser"));
+    app.visits.returned();
+    assert!(app.visits.due().is_empty());
     // An old refresh cannot overwrite newer star counts or its loading status.
     let generation = app.model.repositories.generation;
     app.receive(Message::RepoStats(

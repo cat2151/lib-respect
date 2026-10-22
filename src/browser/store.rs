@@ -146,7 +146,7 @@ impl Store {
             data,
         )
     }
-    fn read<T: DeserializeOwned>(&self, relative: &str) -> Result<Option<T>> {
+    pub(super) fn read<T: DeserializeOwned>(&self, relative: &str) -> Result<Option<T>> {
         let path = self.root.join(relative);
         let text = match fs::read_to_string(&path) {
             Ok(text) => text,
@@ -166,7 +166,7 @@ impl Store {
             format!("invalid cache in {}", path.display())
         })?))
     }
-    fn write(&self, relative: &str, value: &impl Serialize) -> Result<()> {
+    pub(super) fn write(&self, relative: &str, value: &impl Serialize) -> Result<()> {
         let path = self.root.join(relative);
         // Refuse to overwrite unknown or corrupt existing data.
         let _: Option<serde_json::Value> = self.read(relative)?;

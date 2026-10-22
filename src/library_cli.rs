@@ -1,6 +1,7 @@
 use anyhow::Result;
 use lib_respect::browser::{
-    Cancellation, CratesIo, INSPECTION_VERSION, Store, enrich_libraries, inspect_repository, now,
+    Cancellation, CratesIo, INSPECTION_VERSION, Store, enrich_libraries, inspect_repository_cached,
+    now,
 };
 
 pub fn refresh(store: &Store) -> Result<()> {
@@ -15,7 +16,7 @@ pub fn refresh(store: &Store) -> Result<()> {
     for repo in &catalog.repositories {
         if let Some(mut data) = store.dependencies(account.id, repo)? {
             if data.report.inspection_version != INSPECTION_VERSION {
-                data.report = inspect_repository(repo, &cancel)?;
+                data.report = inspect_repository_cached(repo, account.id, store, &cancel)?;
                 data.pushed_at = repo.pushed_at.clone();
                 data.fetched_at = now();
             }

@@ -7,6 +7,7 @@ mod repo_screen;
 mod scan_status;
 mod stats_worker;
 mod theme;
+mod visits;
 mod workers;
 
 use std::{
@@ -15,7 +16,9 @@ use std::{
 };
 
 use anyhow::{Context, Result, ensure};
-use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
+use crossterm::event::{
+    self, DisableFocusChange, EnableFocusChange, Event, KeyCode, KeyEventKind, KeyModifiers,
+};
 use lib_respect::browser::{Config, Store, apply_library_cache};
 
 use model::{DependencyView, Focus, Model};
@@ -31,7 +34,10 @@ pub fn run() -> Result<()> {
     let config = store.config()?;
     let mut app = App::new(store, config)?;
     let mut terminal = ratatui::init();
-    let result = app.run(&mut terminal);
+    let result = crossterm::execute!(io::stdout(), EnableFocusChange)
+        .map_err(anyhow::Error::from)
+        .and_then(|()| app.run(&mut terminal));
+    let _ = crossterm::execute!(io::stdout(), DisableFocusChange);
     ratatui::restore();
     result
 }
@@ -42,6 +48,7 @@ struct App {
     workers: Workers,
     pending_since: Option<Instant>,
     pending_force: bool,
+    visits: visits::Visits,
 }
 
 impl App {
@@ -63,6 +70,7 @@ impl App {
             store,
             pending_since: None,
             pending_force: false,
+            visits: Default::default(),
         };
         app.restore_cached_inspections();
         app.selection_changed(false);
@@ -89,16 +97,26 @@ impl App {
                 }
             }
             self.inspect_next_background();
+            if !self.model.repositories.loading && !self.visits.due().is_empty() {
+                self.refresh_repositories();
+            }
             terminal.draw(|frame| render::draw(frame, &self.model))?;
-            if event::poll(Duration::from_millis(30))?
-                && let Event::Key(key) = event::read()?
-            {
+            if event::poll(Duration::from_millis(30))? {
+                let key = match event::read()? {
+                    Event::FocusGained => {
+                        self.visits.returned();
+                        continue;
+                    }
+                    Event::Key(key) => key,
+                    _ => continue,
+                };
                 if key.kind == KeyEventKind::Release {
                     continue;
                 }
                 if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
                     break;
                 }
+                self.visits.key_pressed();
                 let before = self.model.preferences();
                 let quit = self.key(key.code);
                 if self.model.preferences() != before {
@@ -257,11 +275,13 @@ impl App {
         match message {
             Message::RepoStats(generation, url, stats, viewer) => {
                 if generation == self.model.repositories.generation {
+                    self.visits.completed(&url);
                     self.model.repositories.update(&url, stats, viewer);
                 }
             }
             Message::RepoStatsDone(generation, error) => {
                 if generation == self.model.repositories.generation {
+                    self.visits.finished();
                     self.model.repositories.loading = false;
                     self.model.repositories.notice = error.unwrap_or_else(|| {
                         "Repository details updated (cache valid for 1 hour)".into()
@@ -286,6 +306,7 @@ impl App {
                     self.pending_since = None;
                     self.model.catalog = None;
                     self.model.views.clear();
+                    self.visits = Default::default();
                     self.model.selected = 0;
                 }
                 self.model.account = Some(account);

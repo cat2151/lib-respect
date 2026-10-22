@@ -51,6 +51,7 @@ fn cmake_results_render_after_restart_and_legacy_scans_are_scheduled_again() {
             store,
             pending_since: None,
             pending_force: false,
+            visits: Default::default(),
         };
         app.restore_cached_inspections();
         assert_eq!(app.model.views[&1].checked_revision, Some(None));
@@ -71,6 +72,7 @@ fn cmake_results_render_after_restart_and_legacy_scans_are_scheduled_again() {
         store,
         pending_since: None,
         pending_force: false,
+        visits: Default::default(),
     };
     app.restore_cached_inspections();
     assert_eq!(app.model.views[&1].checked_revision, None);

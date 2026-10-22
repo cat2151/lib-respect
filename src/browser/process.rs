@@ -66,6 +66,18 @@ pub(super) fn graphql(
     repo: &crate::GithubRepo,
     cancel: &Cancellation,
 ) -> Result<Vec<u8>> {
+    graphql_query(
+        query,
+        &[("owner", repo.owner()), ("name", repo.name())],
+        cancel,
+    )
+}
+
+pub(crate) fn graphql_query(
+    query: &str,
+    variables: &[(&str, &str)],
+    cancel: &Cancellation,
+) -> Result<Vec<u8>> {
     let mut command = Command::new("gh");
     command
         .args([
@@ -78,18 +90,34 @@ pub(super) fn graphql(
             "--raw-field",
         ])
         .arg(format!("query={query}"))
-        .arg("--raw-field")
-        .arg(format!("owner={}", repo.owner()))
-        .arg("--raw-field")
-        .arg(format!("name={}", repo.name()))
         .env("GH_PROMPT_DISABLED", "1")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    for (name, value) in variables {
+        command.arg("--raw-field").arg(format!("{name}={value}"));
+    }
     run(&mut command, "graphql", cancel)
 }
 
 pub(super) fn run(command: &mut Command, endpoint: &str, cancel: &Cancellation) -> Result<Vec<u8>> {
+    run_inner(command, endpoint, cancel, false)
+}
+
+pub(super) fn run_conditional(
+    command: &mut Command,
+    endpoint: &str,
+    cancel: &Cancellation,
+) -> Result<Vec<u8>> {
+    run_inner(command, endpoint, cancel, true)
+}
+
+fn run_inner(
+    command: &mut Command,
+    endpoint: &str,
+    cancel: &Cancellation,
+    conditional: bool,
+) -> Result<Vec<u8>> {
     cancel.check()?;
     let mut child = command
         .spawn()
@@ -133,6 +161,19 @@ pub(super) fn run(command: &mut Command, endpoint: &str, cancel: &Cancellation) 
         .map_err(|_| anyhow::anyhow!("gh stderr reader failed"))??;
     let status = result?;
     if !status.success() {
+        // gh exits nonzero for 304 and for partial GraphQL errors. Preserve
+        // these responses so their callers can validate them precisely.
+        if conditional && super::http::status(&stdout) == Some(304) {
+            return Ok(stdout);
+        }
+        if endpoint == "graphql"
+            && serde_json::from_slice::<serde_json::Value>(&stdout).is_ok_and(|v| {
+                v.get("data").is_some_and(|data| data.is_object())
+                    && v.get("errors").is_some_and(|errors| errors.is_array())
+            })
+        {
+            return Ok(stdout);
+        }
         bail!(
             "gh api {endpoint}: {}",
             String::from_utf8_lossy(&stderr).trim()
