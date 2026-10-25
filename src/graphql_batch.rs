@@ -22,7 +22,7 @@ pub(crate) fn fetch(repos: &[GithubRepo], details: bool, cancel: &Cancellation) 
 
 fn query(repos: &[GithubRepo], details: bool) -> String {
     let fields = if details {
-        "viewerHasStarred stargazerCount description"
+        "viewerHasStarred stargazerCount description isArchived"
     } else {
         "viewerHasStarred"
     };

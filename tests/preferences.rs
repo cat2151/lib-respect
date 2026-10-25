@@ -19,6 +19,7 @@ fn legacy_config_keeps_identity_and_modes_round_trip_with_safe_defaults() {
             for star_filter in [
                 StarFilter::NotStarred,
                 StarFilter::Starred,
+                StarFilter::Archived,
                 StarFilter::Both,
             ] {
                 for include_own in [false, true] {

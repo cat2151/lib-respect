@@ -18,6 +18,9 @@ pub struct RepositoryStats {
     /// Separates an empty description from metadata not yet fetched by older builds.
     #[serde(default)]
     pub details_fetched_at: Option<u64>,
+    /// None is unknown, never treated as active.
+    #[serde(default)]
+    pub archived: Option<bool>,
 }
 
 impl RepositoryStats {

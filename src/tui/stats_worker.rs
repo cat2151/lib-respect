@@ -117,6 +117,7 @@ impl StatsWorker {
                                     entry.record(Ok(details.stars), time);
                                     entry.description = details.description;
                                     entry.details_fetched_at = Some(time);
+                                    entry.archived = Some(details.archived);
                                     star.record(Ok(details.viewer_has_starred), time);
                                 }
                                 Err(error) => {

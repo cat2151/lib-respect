@@ -13,6 +13,7 @@ pub enum Screen {
 pub enum StarFilter {
     NotStarred,
     Starred,
+    Archived,
     #[default]
     Both,
 }
@@ -22,13 +23,16 @@ impl StarFilter {
         match self {
             Self::NotStarred => "Not starred",
             Self::Starred => "Starred",
+            Self::Archived => "Archived",
             Self::Both => "Both",
         }
     }
-    pub fn matches(self, value: Option<bool>) -> bool {
+    /// Archived repositories cannot be starred, so they never stay in Not starred.
+    pub fn matches(self, starred: Option<bool>, archived: Option<bool>) -> bool {
         match self {
-            Self::NotStarred => value == Some(false),
-            Self::Starred => value == Some(true),
+            Self::NotStarred => starred == Some(false) && archived != Some(true),
+            Self::Starred => starred == Some(true),
+            Self::Archived => archived == Some(true),
             Self::Both => true,
         }
     }

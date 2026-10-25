@@ -57,6 +57,8 @@ pub struct RepositoryDetails {
     pub stars: u64,
     pub description: Option<String>,
     pub viewer_has_starred: bool,
+    #[serde(rename = "isArchived")]
+    pub archived: bool,
 }
 
 /// Query popularity, description and personal star status together. Validate the
@@ -66,7 +68,7 @@ pub fn repository_details(
     account: &Account,
     cancel: &Cancellation,
 ) -> Result<RepositoryDetails> {
-    let query = "query($owner:String!,$name:String!){viewer{databaseId} repository(owner:$owner,name:$name){stargazerCount description viewerHasStarred}}";
+    let query = "query($owner:String!,$name:String!){viewer{databaseId} repository(owner:$owner,name:$name){stargazerCount description viewerHasStarred isArchived}}";
     let bytes = graphql(query, repo, cancel)?;
     parse_details(&bytes, account)
 }
@@ -143,7 +145,7 @@ mod tests {
             id: 1,
             login: "example".into(),
         };
-        let valid = br#"{"data":{"viewer":{"databaseId":1},"repository":{"stargazerCount":0,"description":null,"viewerHasStarred":false}}}"#;
+        let valid = br#"{"data":{"viewer":{"databaseId":1},"repository":{"stargazerCount":0,"description":null,"viewerHasStarred":false,"isArchived":false}}}"#;
         let details = parse_details(valid, &account).unwrap();
         assert!(!details.viewer_has_starred);
         assert_eq!(details.description, None);

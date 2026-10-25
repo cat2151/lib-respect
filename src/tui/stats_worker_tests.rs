@@ -27,6 +27,7 @@ fn batches_due_repositories_and_rechecks_only_visited_fresh_entries() {
                     stars: 42,
                     description: None,
                     viewer_has_starred: true,
+                    archived: true,
                 })
             })
             .collect())
@@ -74,6 +75,10 @@ fn batches_due_repositories_and_rechecks_only_visited_fresh_entries() {
             .stars,
         Some(42)
     );
+    assert_eq!(
+        store.repository_stats().unwrap().repositories[&urls[0]].archived,
+        Some(true)
+    );
 }
 
 #[test]
@@ -99,6 +104,7 @@ fn failed_recheck_retains_starred_state_and_other_batch_results() {
                 stars: 20,
                 description: None,
                 viewer_has_starred: false,
+                archived: false,
             }),
         ])
     });

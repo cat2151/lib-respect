@@ -100,7 +100,7 @@ impl RepoList {
     pub fn visible(&self) -> Vec<&RepoRow> {
         self.rows
             .iter()
-            .filter(|row| self.filter.matches(row.viewer.starred))
+            .filter(|row| self.filter.matches(row.viewer.starred, row.stats.archived))
             .filter(|row| self.include_own || !self.is_own(row))
             .collect()
     }
@@ -122,7 +122,8 @@ impl RepoList {
         self.filter = match self.filter {
             StarFilter::Both => StarFilter::NotStarred,
             StarFilter::NotStarred => StarFilter::Starred,
-            StarFilter::Starred => StarFilter::Both,
+            StarFilter::Starred => StarFilter::Archived,
+            StarFilter::Archived => StarFilter::Both,
         };
         self.restore_selection(previous);
     }

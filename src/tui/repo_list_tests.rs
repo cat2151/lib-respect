@@ -74,6 +74,7 @@ fn stats(count: u64) -> RepositoryStats {
         error: None,
         description: Some("A useful library".into()),
         details_fetched_at: Some(now()),
+        archived: Some(false),
     }
 }
 
@@ -256,7 +257,7 @@ fn empty_list_has_no_browser_target_and_renders() {
 }
 
 #[test]
-fn filter_cycles_three_states_and_never_classifies_unknown_as_not_starred() {
+fn filter_cycles_four_states_and_never_classifies_unknown_or_archived_as_not_starred() {
     use super::repo_list::StarFilter;
     let mut list = RepoList::default();
     list.reload(
@@ -276,13 +277,24 @@ fn filter_cycles_three_states_and_never_classifies_unknown_as_not_starred() {
     starred.record(Ok(true), now());
     let mut not_starred = ViewerStar::default();
     not_starred.record(Ok(false), now());
+    // Archived repositories cannot be starred, so Not starred would never empty.
+    list.rows.push(RepoRow {
+        url: "https://github.com/example/archived".into(),
+        libraries: BTreeSet::new(),
+        projects: BTreeSet::new(),
+        stats: RepositoryStats {
+            archived: Some(true),
+            ..stats(10)
+        },
+        viewer: not_starred.clone(),
+    });
     list.update(
         "https://github.com/serde-rs/serde",
         stats(30),
         starred.clone(),
     );
     list.update("https://github.com/clap-rs/clap", stats(20), not_starred);
-    assert_eq!(list.visible().len(), 3);
+    assert_eq!(list.visible().len(), 4);
     list.cycle_filter();
     assert_eq!(list.filter, StarFilter::NotStarred);
     assert_eq!(list.visible().len(), 1);
@@ -300,8 +312,15 @@ fn filter_cycles_three_states_and_never_classifies_unknown_as_not_starred() {
         "https://github.com/serde-rs/serde"
     );
     list.cycle_filter();
+    assert_eq!(list.filter, StarFilter::Archived);
+    assert_eq!(
+        list.selected_url().as_deref(),
+        Some("https://github.com/example/archived")
+    );
+    assert_eq!(list.visible().len(), 1);
+    list.cycle_filter();
     assert_eq!(list.filter, StarFilter::Both);
-    assert_eq!(list.visible().len(), 3);
+    assert_eq!(list.visible().len(), 4);
     list.cycle_filter();
     // An asynchronous recheck can remove the selected row from the current filter.
     list.update("https://github.com/clap-rs/clap", stats(20), starred);
