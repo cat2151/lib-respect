@@ -9,6 +9,43 @@ use lib_respect::DependencyReport;
 mod support;
 
 #[test]
+fn update_commands_have_help_without_starting_tui_or_updater() {
+    for command in [None, Some("check"), Some("update")] {
+        let mut process = Command::new(env!("CARGO_BIN_EXE_lib-respect"));
+        if let Some(command) = command {
+            process.arg(command);
+        }
+        let output = process.arg("--help").output().unwrap();
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        let help = String::from_utf8(output.stdout).unwrap();
+        match command {
+            None => assert!(help.contains("check") && help.contains("update")),
+            Some(command) => {
+                let usage = help
+                    .lines()
+                    .find(|line| line.starts_with("Usage:"))
+                    .unwrap();
+                assert!(usage.ends_with(&format!(" {command}")));
+            }
+        }
+    }
+}
+
+#[test]
+fn update_commands_reject_extra_arguments_without_running() {
+    for command in ["check", "update"] {
+        let output = Command::new(env!("CARGO_BIN_EXE_lib-respect"))
+            .args([command, "unexpected"])
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(2));
+        assert!(output.stdout.is_empty());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("unexpected argument"));
+    }
+}
+
+#[test]
 fn deps_binary_emits_only_json_on_stdout() {
     let fixture = support::workspace();
     let output = Command::new(env!("CARGO_BIN_EXE_lib-respect"))

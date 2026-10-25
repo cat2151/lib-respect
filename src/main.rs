@@ -13,6 +13,7 @@ use lib_respect::{
 use serde::Serialize;
 
 mod library_cli;
+mod self_update;
 mod tui;
 
 #[derive(Parser)]
@@ -27,6 +28,10 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Compare the build-time commit with the remote main branch.
+    Check,
+    /// Run self-update to fetch the latest version.
+    Update,
     /// Browse your public GitHub projects and their declared dependencies.
     Tui,
     /// List direct dependencies as JSON (no recursive traversal).
@@ -95,6 +100,14 @@ fn main() -> ExitCode {
 
 fn run(cli: Cli) -> Result<bool> {
     match cli.command {
+        Some(Commands::Check) => {
+            self_update::run_check()?;
+            Ok(false)
+        }
+        Some(Commands::Update) => {
+            self_update::run_self_update()?;
+            Ok(false)
+        }
         Some(Commands::Libraries { refresh }) => {
             let store = lib_respect::browser::Store::local()?;
             if refresh {

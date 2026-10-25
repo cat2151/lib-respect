@@ -7,6 +7,7 @@ description = "Discover the GitHub repositories behind Rust dependencies and see
 [dependencies]
 anyhow = "1"
 clap = { version = "4.6", features = ["derive"] }
+cat-self-update-lib = { git = "https://github.com/cat2151/cat-self-update", branch = "main", package = "cat-self-update-lib" }
 crossterm = "0.29"
 dirs = "7"
 ratatui = { version = "0.30", default-features = false, features = ["crossterm"] }
